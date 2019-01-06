@@ -9,18 +9,28 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-BUFFER_SIZE = int(1e5)  # replay buffer size
-BATCH_SIZE = 128        # minibatch size
-GAMMA = 0.99            # discount factor
-TAU = 1e-3              # for soft update of target parameters
-LR_ACTOR = 1e-4         # learning rate of the actor 
-LR_CRITIC = 1e-3        # learning rate of the critic
-WEIGHT_DECAY = 0        # L2 weight decay
+BUFFER_SIZE = int(1e5)       # replay buffer size
+BATCH_SIZE = 128             # minibatch size
+GAMMA = 0.99                 # discount factor
+TAU = 1e-3                   # for soft update of target parameters
+LR_ACTOR = 1e-4              # learning rate of the actor
+LR_CRITIC = 1e-4             # learning rate of the critic
+WEIGHT_DECAY = 0             # L2 weight decay
+SIGMA = 0.1                  # OU Noise sigma
+ACTOR_NN_SIZE = [128, 128]   # dimension of hidden layers for actor fully connected NN
+CRITIC_NN_SIZE = [128, 128]  # dimension of hidden layers for critic fully connected NN
+
+
+# ACTOR_NN_SIZE = [400, 300]
+# CRITIC_NN_SIZE = [400, 300]
+#danatt
+
+
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-class DDPGAgent():
+class DDPGAgent:
     """Interacts with and learns from the environment."""
     
     def __init__(self, state_size, action_size, random_seed,
@@ -30,7 +40,8 @@ class DDPGAgent():
                  tau=TAU,
                  lr_actor=LR_ACTOR,
                  lr_critic=LR_CRITIC,
-                 weight_decay=WEIGHT_DECAY):
+                 weight_decay=WEIGHT_DECAY,
+                 sigma=SIGMA):
         """Initialize an Agent object.
         
         Params
@@ -47,24 +58,25 @@ class DDPGAgent():
         self.lr_actor = lr_actor
         self.lr_critic = lr_critic
         self.weight_decay = weight_decay
+        self.sigma = sigma
 
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(random_seed)
 
         # Actor Network (w/ Target Network)
-        self.actor_local = Actor(state_size, action_size, random_seed).to(device)
-        self.actor_target = Actor(state_size, action_size, random_seed).to(device)
+        self.actor_local = Actor(state_size, action_size, random_seed, ACTOR_NN_SIZE[0], ACTOR_NN_SIZE[1]).to(device)
+        self.actor_target = Actor(state_size, action_size, random_seed, ACTOR_NN_SIZE[0], ACTOR_NN_SIZE[1]).to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=self.lr_actor)
 
         # Critic Network (w/ Target Network)
-        self.critic_local = Critic(state_size, action_size, random_seed).to(device)
-        self.critic_target = Critic(state_size, action_size, random_seed).to(device)
+        self.critic_local = Critic(state_size, action_size, random_seed, CRITIC_NN_SIZE[0], CRITIC_NN_SIZE[1]).to(device)
+        self.critic_target = Critic(state_size, action_size, random_seed, CRITIC_NN_SIZE[0], CRITIC_NN_SIZE[1]).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=self.lr_critic,
                                            weight_decay=self.weight_decay)
 
         # Noise process
-        self.noise = OUNoise(action_size, random_seed)
+        self.noise = OUNoise(action_size, random_seed, sigma=self.sigma)
 
         # Replay memory
         self.memory = ReplayBuffer(action_size, self.buffer_size, self.batch_size, random_seed)
@@ -79,7 +91,7 @@ class DDPGAgent():
             experiences = self.memory.sample()
             self.learn(experiences, self.gamma)
 
-    def act(self, state, add_noise=True):
+    def act(self, state, add_noise=True, score=0):
         """Returns actions for given state as per current policy."""
         state = torch.from_numpy(state).float().to(device)
         self.actor_local.eval()
@@ -87,7 +99,14 @@ class DDPGAgent():
             action = self.actor_local(state).cpu().data.numpy()
         self.actor_local.train()
         if add_noise:
+            # # danatt
+            # goal = 40
+            # damping = (goal - score)/goal
+            # action += self.noise.sample() * damping
+            # # danatt
+
             action += self.noise.sample()
+
         return np.clip(action, -1, 1)
 
     def reset(self):
@@ -119,6 +138,7 @@ class DDPGAgent():
         # Minimize the loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1) #==== totry: from danatt
         self.critic_optimizer.step()
 
         # ---------------------------- update actor ---------------------------- #
