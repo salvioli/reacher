@@ -16,7 +16,10 @@ def train(agent, env, n_episodes=1000, score_window_size=100, print_every=50, ma
 
     scores_deque = deque(maxlen=score_window_size)
     all_scores = []
+    all_avg_scores = []
     all_std = []
+
+    start = time.time()
     for i_episode in range(1, n_episodes + 1):
         env_info = env.reset(train_mode=True)[brain_name]
         agent.reset()
@@ -44,30 +47,48 @@ def train(agent, env, n_episodes=1000, score_window_size=100, print_every=50, ma
 
         scores_deque.append(np.mean(scores))
         all_scores.append(scores)
+        all_avg_scores.append(np.mean(scores_deque))
         all_std.append(np.std(scores_deque))
 
-        if i_episode % print_every == 0:
+        if np.mean(scores_deque) >= max_score and not task_solved:
+            print(f'\nTask solved in {i_episode} episodes\tAverage Score: {np.mean(scores_deque):.2f}')
+            task_solved = True
+        elif i_episode == n_episodes:
+            print('')
+        elif i_episode % print_every == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_deque)))
-        elif np.mean(scores_deque) >= max_score or i_episode == n_episodes:
-            timestr = time.strftime("%Y%m%d-%H%M%S")
-            agent_type = agent.__class__.__name__
-            folder_name = agent_type + '-' + f'{np.mean(scores_deque):.2f}' + '-' + str(i_episode) + '-' + timestr
-            save_path = './checkpoints/' + folder_name
-            os.mkdir(save_path)
-
-            print(f'Task solved in {i_episode} episodes\tAverage Score: {np.mean(scores_deque):.2f}')
-            torch.save(agent.actor_local.state_dict(), save_path + '/checkpoint_actor.pth')
-            torch.save(agent.critic_local.state_dict(), save_path + '/checkpoint_critic.pth')
-            return all_scores
         else:
-            print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_deque)), end="")
+            end = time.time()
+            print('\rEpisode {}\tAverage Score: {:.2f}\tElapsed Time{:.2f}'.format(i_episode, np.mean(scores_deque), end-start), end="")
+            start = end
 
-    return all_scores, all_std
+    save_state(agent, all_avg_scores, all_scores, all_std, i_episode, scores_deque)
+
+    return all_scores, all_avg_scores, all_std
 
 
-def plot_scores(scores, std):
+def save_state(agent, all_avg_scores, all_scores, all_std, i_episode, scores_deque):
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    agent_type = agent.__class__.__name__
+    folder_name = agent_type + '-' + f'{np.mean(scores_deque):.2f}' + '-' + str(i_episode) + '-' + timestr
+    save_path = './checkpoints/' + folder_name
+    os.makedirs(save_path, exist_ok=True)
+    torch.save(agent.actor_local.state_dict(), save_path + '/checkpoint_actor.pth')
+    torch.save(agent.critic_local.state_dict(), save_path + '/checkpoint_critic.pth')
+    pickle.dump(all_scores, open(save_path + "/scores.p", "wb"))
+    pickle.dump(all_avg_scores, open(save_path + "/avg_scores.p", "wb"))
+    pickle.dump(all_std, open(save_path + "/std.p", "wb"))
+    plot_scores(all_scores, all_avg_scores, all_std, out_file=save_path + "/training_plot.pdf")
+
+
+def plot_scores(scores, avgscores, std, out_file=''):
+
+    if out_file:
+        was_interactive = plt.isinteractive()
+        plt.ioff()
+
     scores = np.squeeze(np.array(scores))
-    avgscores = np.convolve(np.array(scores).squeeze(),np.ones(100)/100, 'same')
+    avgscores = np.array(avgscores)
     std = np.array(std)
 
     fig = plt.figure()
@@ -82,7 +103,37 @@ def plot_scores(scores, std):
     plt.fill_between(np.arange(1, len(scores) + 1), min_error, max_error, color='blue', alpha=0.1)
     plt.ylabel('Score')
     plt.xlabel('Episode #')
-    plt.show()
+
+    if not out_file:
+        plt.show()
+    else:
+        plt.savefig(out_file)
+        plt.close(fig)
+        plt.interactive(was_interactive)
+
+
+def demo(agent, env):
+    brain_name = env.brain_names[0]
+    env_info = env.reset(train_mode=False)[brain_name]
+    num_agents = len(env_info.agents)
+
+    states = env_info.vector_observations                  # get the current state
+    scores = np.zeros(num_agents)                          # initialize the score
+    while True:
+        actions = agent.act(states, add_noise=False)       # select an action
+
+        env_info = env.step(actions)[brain_name]           # send all actions to the environment
+        next_states = env_info.vector_observations         # get next state
+        rewards = env_info.rewards                         # get reward
+        dones = env_info.local_done                        # see if episode finished
+
+        scores += rewards                                  # update the score
+        states = next_states                               # roll over states to next time step
+        if np.any(dones):                                  # exit loop if episode finished
+            break
+
+    print('Total score (averaged over agents) this episode: {}'.format(np.mean(scores)))
+
 
 if __name__ == '__main__':
     from unityagents import UnityEnvironment
