@@ -92,7 +92,7 @@ class DDPGAgent:
             experiences = self.memory.sample()
             self.learn(experiences, self.gamma)
 
-    def act(self, state, add_noise=True, score=0):
+    def act(self, state, add_noise=True, noise_damping=1):
         """Returns actions for given state as per current policy."""
         state = torch.from_numpy(state).float().to(device)
         self.actor_local.eval()
@@ -100,13 +100,7 @@ class DDPGAgent:
             action = self.actor_local(state).cpu().data.numpy()
         self.actor_local.train()
         if add_noise:
-            # # danatt
-            # goal = 40
-            # damping = (goal - score)/goal
-            # action += self.noise.sample() * damping
-            # # danatt
-
-            action += self.noise.sample()
+            action += self.noise.sample() * noise_damping
 
         return np.clip(action, -1, 1)
 

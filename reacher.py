@@ -4,9 +4,11 @@ import torch
 import matplotlib.pyplot as plt
 import time
 import os
+import pickle
 
 
-def train(agent, env, n_episodes=1000, score_window_size=100, print_every=50, max_score=30):
+def train(agent, env, n_episodes=1000, score_window_size=100, print_every=50, max_score=None, damp_exploration_noise=False):
+    task_solved = False
 
     brain_name = env.brain_names[0]
     env_info = env.reset(train_mode=True)[brain_name]
@@ -21,7 +23,12 @@ def train(agent, env, n_episodes=1000, score_window_size=100, print_every=50, ma
         states = env_info.vector_observations  # get the current state
         scores = np.zeros(num_agents)  # initialize the score
         while True:
-            actions = agent.act(states, score=np.mean(scores_deque))  # select an action
+            if damp_exploration_noise:
+                damping = (40 - np.mean(scores))/40
+                actions = agent.act(states, noise_damping=damping)  # select an action
+            else:
+                actions = agent.act(states)  # select an action
+
             env_info = env.step(actions)[brain_name]  # send all actions to the environment
 
             next_states = env_info.vector_observations  # get next state
