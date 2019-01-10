@@ -17,15 +17,8 @@ LR_ACTOR = 1e-4              # learning rate of the actor
 LR_CRITIC = 1e-4             # learning rate of the critic
 WEIGHT_DECAY = 0             # L2 weight decay
 SIGMA = 0.1                  # OU Noise sigma
-ACTOR_NN_SIZE = [128, 128]   # dimension of hidden layers for actor fully connected NN
-CRITIC_NN_SIZE = [128, 128]  # dimension of hidden layers for critic fully connected NN
-
-
-# ACTOR_NN_SIZE = [400, 300]
-# CRITIC_NN_SIZE = [400, 300]
-#danatt
-
-
+ACTOR_NN_SIZE = [400, 300]   # dimension of hidden layers for actor fully connected NN
+CRITIC_NN_SIZE = [400, 300]  # dimension of hidden layers for critic fully connected NN
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -41,7 +34,11 @@ class DDPGAgent:
                  lr_actor=LR_ACTOR,
                  lr_critic=LR_CRITIC,
                  weight_decay=WEIGHT_DECAY,
-                 sigma=SIGMA):
+                 sigma=SIGMA,
+                 actor_nn_size=ACTOR_NN_SIZE,
+                 critic_nn_size=CRITIC_NN_SIZE,
+                 batch_norm=True,
+                 clip_grad_norm=True):
         """Initialize an Agent object.
         
         Params
@@ -59,19 +56,23 @@ class DDPGAgent:
         self.lr_critic = lr_critic
         self.weight_decay = weight_decay
         self.sigma = sigma
+        self.actor_nn_size = actor_nn_size
+        self.critic_nn_size = critic_nn_size
+        self.batch_norm = batch_norm
+        self.clip_grad_norm = clip_grad_norm
 
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(random_seed)
 
         # Actor Network (w/ Target Network)
-        self.actor_local = Actor(state_size, action_size, random_seed, ACTOR_NN_SIZE[0], ACTOR_NN_SIZE[1]).to(device)
-        self.actor_target = Actor(state_size, action_size, random_seed, ACTOR_NN_SIZE[0], ACTOR_NN_SIZE[1]).to(device)
+        self.actor_local = Actor(state_size, action_size, random_seed, self.actor_nn_size[0], self.actor_nn_size[1], self.batch_norm).to(device)
+        self.actor_target = Actor(state_size, action_size, random_seed, self.actor_nn_size[0], self.actor_nn_size[1], self.batch_norm).to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=self.lr_actor)
 
         # Critic Network (w/ Target Network)
-        self.critic_local = Critic(state_size, action_size, random_seed, CRITIC_NN_SIZE[0], CRITIC_NN_SIZE[1]).to(device)
-        self.critic_target = Critic(state_size, action_size, random_seed, CRITIC_NN_SIZE[0], CRITIC_NN_SIZE[1]).to(device)
+        self.critic_local = Critic(state_size, action_size, random_seed, self.critic_nn_size[0], self.critic_nn_size[1], self.batch_norm).to(device)
+        self.critic_target = Critic(state_size, action_size, random_seed, self.critic_nn_size[0], self.critic_nn_size[1], self.batch_norm).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=self.lr_critic,
                                            weight_decay=self.weight_decay)
 
@@ -138,7 +139,8 @@ class DDPGAgent:
         # Minimize the loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1) #==== totry: from danatt
+        if self.clip_grad_norm:
+            torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
         self.critic_optimizer.step()
 
         # ---------------------------- update actor ---------------------------- #
