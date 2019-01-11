@@ -11,12 +11,20 @@ The following is the description of the reward function together with the observ
 
 - __observation space__ consists of 33 variables corresponding to position, rotation, velocity, angular velocities.
 
-- __action space__ is a vector with four numbers, corresponding to torque applicable to two joints. Every entry in the action vector should be a number between -1 and 1.
+- __action space__ is a vector with four numbers, corresponding to torque applicable to two 2 degree of freedom joints. 
+  Every entry in the action vector should be a number between -1 and 1.
 
 The task is episodic.
 
 ### Solution criteria
 In order to solve the environment the agent must get an average score of +30 over 100 consecutive episodes.
+
+## Code description
+The code is organized in the following files:
+- _model.py_: this file implements the neural networks which are used by the DDPG agent, both the actor and critic
+- _ddpg_agent.py_: this file implements the DDPG algorithm
+- _reacher.py_: this file includes some utility functions used to orchestrate the agent and the environment with the 
+objective of cleaning up the report file
 
 ## Getting started
 ### Prerequisites
