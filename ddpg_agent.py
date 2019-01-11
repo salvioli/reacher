@@ -24,7 +24,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class DDPGAgent:
-    """Interacts with and learns from the environment."""
+    """DDPG agent implementation."""
     
     def __init__(self, state_size, action_size, random_seed,
                  buffer_size=BUFFER_SIZE,
@@ -39,13 +39,23 @@ class DDPGAgent:
                  critic_nn_size=CRITIC_NN_SIZE,
                  batch_norm=True,
                  clip_grad_norm=True):
-        """Initialize an Agent object.
-        
-        Params
-        ======
-            state_size (int): dimension of each state
-            action_size (int): dimension of each action
-            random_seed (int): random seed
+        """
+        Initialization of the Agent
+        :param state_size         (int):   dimension of each state
+        :param action_size        (int):   dimension of each action
+        :param random_seed        (int):   random seed
+        :param buffer_size        (int):   number of samples that the replay buffer can store
+        :param batch_size         (int):   number of samples used for learning for each learning step
+        :param gamma            (float):   reward discount factor of the MDP problem
+        :param tau              (float):   soft update factor, between 0 and 1, varies how fast the target network are updated
+        :param lr_actor         (float):   learning rate for the actor
+        :param lr_critic        (float):   learning rate for the critic
+        :param weight_decay     (float):   weight decay regularization factor
+        :param sigma            (float):   OU noise process randomness weight
+        :param actor_nn_size  [int,int]:   2 dim array defining the number of units in the actor NN for the two fc layers
+        :param critic_nn_size [int,int]:   2 dim array defining the number of units in the critic NN for the two fc layers
+        :param batch_norm        (bool):   flag to control the use of batch normalization
+        :param clip_grad_norm    (bool):   flag to control the use of critic backprop updated gradient clipping
         """
         # Hyperparameters
         self.buffer_size = buffer_size
